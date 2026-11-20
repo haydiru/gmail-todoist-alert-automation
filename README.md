@@ -8,29 +8,32 @@ An enterprise-grade, event-driven automation built on **n8n** that monitors inco
 
 ```mermaid
 flowchart TD
-    subgraph MainFlow["1. Main Automation Pipeline"]
-        A["📨 Gmail Trigger<br/>(Polls every minute, unread emails, simple=false)"] --> B{"🔍 Filter ALERT Emails<br/>(Subject contains 'ALERT')"}
-        B -- "Match (True)" --> C["✅ Create Todoist Task<br/>(Priority 1, Name=Subject, Desc=Sender + Text)"]
-        B -- "No Match (False)" --> D["🛑 Dropped / Ignored<br/>(0 items passed downstream)"]
+    subgraph MainFlow["Main Automation Workflow (Active)"]
+        direction LR
+        Trigger["📨 Gmail Trigger<br/><small>Polls every minute (unread emails)</small>"] --> Filter{"🔍 Filter: Contains 'ALERT'?<br/><small>Evaluates subject line</small>"}
+        Filter -- "Yes (Match)" --> Action["✅ Create Todoist Task<br/><small>Priority 1 | Task name = Subject<br/>Description = Sender + Body</small>"]
+        Filter -- "No" --> Ignored["🛑 Ignored<br/><small>0 items passed downstream</small>"]
     end
 
-    subgraph WatchdogFlow["2. Dedicated Watchdog (Error Handling)"]
-        E["⚠️ WATCHDOG (Error Trigger)<br/>(Fires automatically on execution failure)"] --> F["📧 Send Error Email (Gmail)<br/>(Immediate alert with Execution ID, Link & Stack Trace)"]
+    subgraph ErrorFlow["Dedicated Watchdog Workflow (Error Handling)"]
+        direction LR
+        ErrTrigger["⚠️ WATCHDOG<br/><small>n8n Error Trigger</small>"] --> ErrAction["📧 Send Error Email<br/><small>Dispatches failure details & execution link</small>"]
     end
 
-    C -. "On Failure (Token expired, API 429, Timeout)" .-> E
+    MainFlow -. "On Any Workflow Failure<br/>(settings.errorWorkflow)" .-> ErrTrigger
 
-    classDef trigger fill:#ea4335,stroke:#fff,stroke-width:2px,color:#fff;
-    classDef filter fill:#fbbc05,stroke:#333,stroke-width:2px,color:#000;
-    classDef action fill:#e44332,stroke:#fff,stroke-width:2px,color:#fff;
-    classDef error fill:#d93025,stroke:#fff,stroke-width:2px,color:#fff;
-    classDef drop fill:#757575,stroke:#fff,stroke-width:1px,color:#fff;
+    classDef default fill:#f8fafc,stroke:#cbd5e1,stroke-width:1px,color:#0f172a;
+    classDef nodeTrigger fill:#f8fafc,stroke:#94a3b8,stroke-width:1.5px,color:#0f172a;
+    classDef nodeFilter fill:#fefce8,stroke:#eab308,stroke-width:1.5px,color:#713f12;
+    classDef nodeAction fill:#f0fdf4,stroke:#22c55e,stroke-width:1.5px,color:#14532d;
+    classDef nodeIgnored fill:#f1f5f9,stroke:#94a3b8,stroke-width:1px,stroke-dasharray: 3 3,color:#64748b;
+    classDef nodeError fill:#fef2f2,stroke:#ef4444,stroke-width:1.5px,color:#7f1d1d;
 
-    class A trigger;
-    class B filter;
-    class C action;
-    class D drop;
-    class E,F error;
+    class Trigger nodeTrigger;
+    class Filter nodeFilter;
+    class Action nodeAction;
+    class Ignored nodeIgnored;
+    class ErrTrigger,ErrAction nodeError;
 ```
 
 ---
@@ -155,26 +158,27 @@ Before connecting live inboxes, the workflow was validated using n8n's internal 
 A **"Watchdog"** is an automated surveillance mechanism that monitors the health and continuity of the automation pipeline. Reliable system monitoring requires a 3-tiered defense:
 
 ```mermaid
-flowchart TD
-    subgraph Failures["Failure Modes"]
-        F1["Active API Error<br/>(OAuth Token Expired, Rate Limit 429)"]
-        F2["Silent Runner Outage<br/>(n8n Server Down, Scheduler Frozen)"]
+flowchart LR
+    subgraph Track1["Track 1: Active Runtime Failures (Internal)"]
+        direction TB
+        E1["API / Token Error Occurs<br/><small>e.g. Expired OAuth token, API rate-limit 429</small>"] --> E2["n8n Error Trigger ('Watchdog')<br/><small>Catches unhandled runtime execution failure</small>"]
+        E2 --> E3["📧 Immediate Admin Email<br/><small>Direct n8n execution URL & error stack</small>"]
     end
 
-    subgraph Defense["Watchdog Defense Layers"]
-        W1["Tier 1: Dedicated Error Workflow (Implemented)<br/>(WATCHDOG Error Trigger -> Immediate Gmail Alert)"]
-        W2["Tier 2: Dead Man's Snitch (External Heartbeat)<br/>(Healthchecks.io / BetterStack Ping)"]
-        W3["Tier 3: Execution Log & Prometheus Metrics<br/>(Query n8n /executions API for failure rates)"]
+    subgraph Track2["Track 2: Silent Infrastructure Outages (External)"]
+        direction TB
+        S1["Host Server / Daemon Crash<br/><small>n8n instance offline or scheduler frozen</small>"] --> S2["External Heartbeat Monitor<br/><small>Healthchecks.io / BetterStack ping missed</small>"]
+        S2 --> S3["🚨 Outage Alert (SMS / Slack)<br/><small>Alerts ops that runner is unresponsive</small>"]
     end
 
-    F1 --> W1
-    F2 --> W2
-    F1 & F2 --> W3
+    classDef default fill:#f8fafc,stroke:#cbd5e1,stroke-width:1px,color:#0f172a;
+    classDef card fill:#ffffff,stroke:#cbd5e1,stroke-width:1px,color:#0f172a;
+    classDef alertCard fill:#fef2f2,stroke:#fca5a5,stroke-width:1px,color:#7f1d1d;
+    classDef notifyCard fill:#f0fdf4,stroke:#86efac,stroke-width:1px,color:#14532d;
 
-    classDef fail fill:#ea4335,stroke:#fff,stroke-width:1.5px,color:#fff;
-    classDef watch fill:#1a73e8,stroke:#fff,stroke-width:1.5px,color:#fff;
-    class F1,F2 fail;
-    class W1,W2,W3 watch;
+    class E1,S1 card;
+    class E2,S2 alertCard;
+    class E3,S3 notifyCard;
 ```
 
 #### Tier 1: Dedicated Error Workflow (`Watchdog`) — *Implemented & Linked*

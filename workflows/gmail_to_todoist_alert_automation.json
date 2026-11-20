@@ -1,0 +1,115 @@
+{
+  "name": "Gmail to Todoist ALERT Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "readStatus": "unread"
+        }
+      },
+      "id": "d8386e5d-f75b-46f6-8e3c-64a22139f849",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [-96, 208],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "BEGXJwhrXs0w7Mur",
+          "name": "Gmail hmtech"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.subject }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              },
+              "rightValue": "ALERT",
+              "id": "6bb6d368-b6a8-468a-9d7d-fd2d8b649cfb"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dbaf3c94-a800-413f-9620-8bfdbd1fcd86",
+      "name": "Filter ALERT Emails",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [208, 208]
+    },
+    {
+      "parameters": {
+        "project": {
+          "__rl": true,
+          "value": "6j3v5HrgGphv8p4q",
+          "mode": "list",
+          "cachedResultName": "Automation"
+        },
+        "content": "={{ $json.subject }}",
+        "options": {
+          "description": "=Sender: {{ $json.from.text || $json.from.value[0].address || $json.from }}\n\nMessage:\n{{ $json.text }}",
+          "priority": 1
+        }
+      },
+      "id": "085a8a58-720e-47a7-b2f0-9b88dcd1b1e9",
+      "name": "Create Todoist Task",
+      "type": "n8n-nodes-base.todoist",
+      "typeVersion": 2.2,
+      "position": [512, 208],
+      "credentials": {
+        "todoistApi": {
+          "id": "muIMlgABtz8o3Uj3",
+          "name": "Todoist account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Filter ALERT Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter ALERT Emails": {
+      "main": [
+        [
+          {
+            "node": "Create Todoist Task",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "xL8gRWxRggDBA1GU"
+  }
+}
